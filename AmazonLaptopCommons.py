@@ -1,4 +1,13 @@
 import json
+from collections import namedtuple
+from enum import Enum
+
+class PageType(Enum):
+    laptoplist_page = 1
+    laptopitem_page = 2
+    laptopcomment_page = 3
+    
+QueuingTask = namedtuple('QueuingTask', ['url', 'page_type', 'info_item'])
 
 class QandA(object):
     def __init__(self):
@@ -42,6 +51,7 @@ class LaptopInfoItem(object):
     @staticmethod
     def to_dict(item):
         return {
+            'asub': item.asin,
             'title': item.title,
             'brand': item.brand,
             'price': item.price,
@@ -53,7 +63,7 @@ class LaptopInfoItem(object):
         return json.dumps(self, default=LaptopInfoItem.to_dict, indent=4)
                 
 selectorOf = {
-    'all_laptop_items': '#s-results-list-atf > li > div > div:nth-of-type(3) > div.a-row.a-spacing-none > a',
+    'all_laptop_items': 'li[id^=result_] > div > div:nth-of-type(3) > div > a',
     'next_page_link':'#pagnNextLink',
     'product_title':'#productTitle',
     'product_brand':'#brand',
@@ -79,4 +89,4 @@ common_headers = {
     'Accept-Encoding': 'gzip, deflate, sdch',
     'Avail-Dictionary': 'tKUA8sqv',
     'Accept-Language': 'en-US,en;q=0.8',
-} 
+}

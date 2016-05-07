@@ -1,5 +1,5 @@
 class CannotGetPageError(Exception):
-    def __init___(self, value):
+    def __init__(self, value):
         self.value = value
         
     def __str__(self):
