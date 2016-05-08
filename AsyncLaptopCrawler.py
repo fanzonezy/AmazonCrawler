@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
-import resource
 import re 
+import memory_profiler
 from AmazonLaptopCommons import PageType, selectorOf, LaptopInfoItem, CommentItem, QueuingTask
 from bs4 import BeautifulSoup
 
@@ -11,9 +11,11 @@ try:
 except ImportError:
     from asyncio import Queue
     
+    
 class AsyncCrawler(object):
     
     REQUEST_HEADERS = {
+        'Host': "www.amazon.com",
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/ 39.0.2171.95 Safari/537.36',
         'Accept-Encoding': 'gzip, deflate, sdch',
@@ -38,14 +40,12 @@ class AsyncCrawler(object):
         """
         self.item_cnt = 0
         self.page_cnt = 0
-        
-        print()
-        
+                
     def close(self):
         self.session.close()
         
-    @asyncio.coroutine
-    def parse_laptoplist(self, response):
+    
+    async def parse_laptoplist(self, response):
         """
         TODO:
         (1) parse all the links to laptop items(add to queue).
@@ -58,11 +58,14 @@ class AsyncCrawler(object):
         #body = yield from response.read()
         
         try:
-            text = yield from response.text()
+            text = await response.text()
         except:
             print("PAGE " + str(self.page_cnt) + " WENT WRONG.")
             raise
-        
+               
+        with open("D:\\No."+str(self.page_cnt)+".html", 'w') as f:
+            f.write(text)
+               
         #print(text)
         soup = BeautifulSoup(text, 'html.parser')
         #items = soup.select(selectorOf['all_laptop_items'])
@@ -74,7 +77,7 @@ class AsyncCrawler(object):
         print(len(items))
         for item in items:
             url = item['href']
-            print(url)
+            #print(url)
             info_item = LaptopInfoItem()
             info_item.asin = re.findall(r'\/B[0-9A-Z]{9}\/', url)[0][1:-1]
             #print("ADD " + info_item.asin + "INTO QUEUE")
@@ -95,8 +98,8 @@ class AsyncCrawler(object):
         
         return tasks
     
-    @asyncio.coroutine
-    def parse_laptopitem(self, response, info_item):
+    #@asyncio.coroutine
+    async def parse_laptopitem(self, response, info_item):
         """
         TODO:
         (1) parse all the basic information about a laptop model:
@@ -114,7 +117,7 @@ class AsyncCrawler(object):
         tasks = set()
         
         try:
-            text = yield from response.text()
+            text = await response.text()
         except Exception:
             print("WHEN PARSE LAPTOP: "+ info_item.asin + " WENT WRONG")
             print("SIZE OF QUEUE: " + str(self.q.qsize()))
@@ -143,7 +146,7 @@ class AsyncCrawler(object):
         
         return tasks
     
-    def parse_laptopcomments(self, response, info_item):
+    async def parse_laptopcomments(self, response, info_item):
         """
         TODO:
         (1) parse all the comments:
@@ -157,7 +160,7 @@ class AsyncCrawler(object):
         tasks = set()
         
         try:
-            text = yield from response.text()
+            text = await response.text()
         except:
             print("WHEN PARSE COMMENTS OF "+info_item.asin + " WENT WRONG.")
             print("SIZE OF QUEUE: " + str(self.q.qsize()))
@@ -189,15 +192,15 @@ class AsyncCrawler(object):
             print("No." + str(self.item_cnt) + ":" + info_item.asin + " HAS FINISHED")
         return tasks
 
-    @asyncio.coroutine
-    def crawl(self):
+    #@memory_profiler.profile
+    async def crawl(self):
         workers = [asyncio.Task(self.work(), loop=self.loop) for _ in range(self.max_tasks)]
-        yield from self.q.join()
+        await self.q.join()
         for worker in workers:
             worker.cancel()
         
-    @asyncio.coroutine
-    def fetch(self, queuingTask):
+    
+    async def fetch(self, queuingTask):
         """
         unpack task tuple
         """
@@ -209,7 +212,7 @@ class AsyncCrawler(object):
         tries = 0
         while tries < self.max_retry:
             try:
-                response = yield from self.session.get(url, headers = AsyncCrawler.REQUEST_HEADERS)
+                response = await self.session.get(url, headers = AsyncCrawler.REQUEST_HEADERS)
                 break
             except aiohttp.ClientError:
                 pass
@@ -229,11 +232,11 @@ class AsyncCrawler(object):
         try:
             
             if page_type == PageType.laptoplist_page:
-                links = yield from self.parse_laptoplist(response)
+                links = await self.parse_laptoplist(response)
             elif page_type == PageType.laptopitem_page:
-                links = yield from self.parse_laptopitem(response, info_item)
+                links = await self.parse_laptopitem(response, info_item)
             elif page_type == PageType.laptopcomment_page:
-                links = yield from self.parse_laptopcomments(response, info_item)
+                links = await self.parse_laptopcomments(response, info_item)
             
             for link in links:
                 self.q.put_nowait(link)
@@ -243,23 +246,22 @@ class AsyncCrawler(object):
         except:
             raise
         finally:
-            yield from response.release()
+            await response.release()
     
-    @asyncio.coroutine
-    def work(self):
+    
+    async def work(self):
         try:
             while True:
-                queuingTask = yield from self.q.get()
-                yield from self.fetch(queuingTask)
+                queuingTask = await self.q.get()
+                await self.fetch(queuingTask)
                 self.q.task_done()
         except asyncio.CancelledError:
             pass 
         
-    def correct_url(self, url):
-        return 
         
 loop = asyncio.get_event_loop()
 crawler = AsyncCrawler("http://www.amazon.com/s/ref=s9_acss_bw_bf_abcdefgh_1_img?rh=i%3Acomputers%2Cn%3A565108&field-availability=-1&field-brandtextbin=Acer&ie=UTF8&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=merchandised-search-10&pf_rd_r=1VQZCF5T7GRS1QFW0TKG&pf_rd_t=101&pf_rd_p=2405855262&pf_rd_i=565108")    
+
 try:
     loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
 except KeyboardInterrupt:
