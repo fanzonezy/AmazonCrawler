@@ -1,4 +1,12 @@
 import json
+import pytesseract 
+from sys import stderr
+from urllib.request import urlretrieve
+from bs4 import BeautifulSoup
+try: 
+    import Image
+except ImportError:
+    from PIL import Image
 from collections import namedtuple
 from enum import Enum
 
@@ -61,7 +69,10 @@ class LaptopInfoItem(object):
         
     def __str__(self):
         return json.dumps(self, default=LaptopInfoItem.to_dict, indent=4)
-                
+          
+          
+
+              
 selectorOf = {
     'all_laptop_items': 'li[id^=result_] > div > div:nth-of-type(3) > div > a',
     'next_page_link':'#pagnNextLink',

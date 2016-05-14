@@ -1,9 +1,16 @@
 import asyncio
 import aiohttp
-import re 
-import memory_profiler
-from AmazonLaptopCommons import PageType, selectorOf, LaptopInfoItem, CommentItem, QueuingTask
+#import objgraph
+import sys
+import re
+import logging
+
+from multiprocessing import Process, Manager
 from bs4 import BeautifulSoup
+
+from AmazonLaptopCommons import PageType, selectorOf, LaptopInfoItem, CommentItem, QueuingTask
+
+LOGGER = logging.getLogger(__name__)
 
 
 try:
@@ -11,15 +18,148 @@ try:
 except ImportError:
     from asyncio import Queue
     
+class PageParsers(object):
+    base_url = "http://www.amazon.com"
     
+    @staticmethod
+    def parse_laptoplist(tasks, text):
+        """
+        This method takes the text of HTML text content.
+        Parse the page: extract asin of each laptop item,
+        Create a fetching task for each item if there is
+        any, Create a fetch task for next list page if 
+        thre us any.
+        
+        Args:
+            tasks: fetch task list(Share memory)
+            text: HTML text content
+            
+        Return:
+            None
+        """
+        
+        soup = BeautifulSoup(text, 'html.parser')
+        items = [item.find('a') for item in soup.find_all("li", id=re.compile("^result_"))]
+                
+        """
+        add item links
+        """
+        print(len(items))
+        for item in items:
+            url = item['href']
+            info_item = LaptopInfoItem()
+            info_item.asin = re.findall(r'\/B[0-9A-Z]{9}\/', url)[0][1:-1]
+            tasks.append(
+                QueuingTask(url, PageType.laptopitem_page, info_item)
+            )
+            
+        """
+        add next page link
+        """
+        try:
+            next_page_url = soup.select(selectorOf['next_page_link'])[0]['href']
+        except IndexError:
+            LOGGER.warning('CAN NOT REACH NEXT PAGE')
+        else:
+            tasks.append(
+                QueuingTask(PageParsers.base_url+next_page_url, PageType.laptoplist_page, LaptopInfoItem())
+            )
+        
+    @staticmethod
+    def parse_laptopitem(tasks, text, info_item):
+        #print("Parse item")
+        """
+        TODO:
+        (1) parse all the basic information about a laptop model:
+            (a) asin serial number
+            (b) model title
+            (c) rating
+            (d) price
+            (e) brand
+        (2) parse the link to comment list page(add to queue).
+        """        
+              
+        soup = BeautifulSoup(text, 'html.parser')
+        try:
+            info_item.title = soup.select(selectorOf['product_title'])[0].string.strip()
+        except IndexError:
+            LOGGER.warning("cannot parse product title of " + info_item.asin)
+            
+        try:
+            info_item.brand = soup.select(selectorOf['product_brand'])[0].string.strip()    
+        except IndexError:
+            LOGGER.warning("cannot parse product brand of " + info_item.asin)
+        
+        try:
+            info_item.rating = soup.select(selectorOf['product_rating'])[0].string.strip()
+        except IndexError:
+            LOGGER.warning("cannot parse product rating of " + info_item.asin)
+        
+        try:
+            info_item.price = soup.select(selectorOf['product_price'])[0].string.strip()
+        except IndexError:
+            LOGGER.warning("cannot parse product price of " + info_item.asin)
+            
+        try:
+            url = soup.select(selectorOf['comment_page_link'])[0]['href']
+        except IndexError:
+            LOGGER.warning("no comments page found for " + info_item.asin + ".")
+            print(info_item.asin + " has finished.")
+            print(info_item)
+        else:
+            tasks.append(
+                QueuingTask(url, PageType.laptopcomment_page, info_item)
+            )
+        
+        #soup.decompose()
+
+    @staticmethod
+    def parse_laptopcomments(tasks, text, info_item):
+        """
+        TODO:
+        (1) parse all the comments:
+            (a) customer name
+            (b) rating
+            (c) comment title
+            (d) comment body
+        (2) parse the link to next comment list page(add to queue).
+        """
+        
+        soup = BeautifulSoup(text, 'html.parser')
+        
+        """
+        parse all comments 
+        """
+        for cmmt_soup in soup.select(selectorOf['comment_item']):
+            cmmt_item = CommentItem()
+            try:
+                cmmt_item.rating = cmmt_soup.select(selectorOf['product_rating_in_comment'])[0].string.strip()
+                cmmt_item.customer_name = cmmt_soup.select(selectorOf['customer_name'])[0].string.strip()
+                cmmt_item.comment_title = cmmt_soup.select(selectorOf['comment_title'])[0].string.strip()
+                cmmt_item.comment_body = " ".join([s.strip() for s in cmmt_soup.select(selectorOf['comment_body'])[0].strings])
+            except:
+                LOGGER.warning("ERROR WHEN PARSE " + info_item.asin + "'S COMMENT")
+            else:
+                info_item.comments.append(cmmt_item)
+                
+        try:
+            next_page_url = soup.select(selectorOf['comment_next_page_link'])[0]['href']
+        except IndexError:
+            print(info_item.asin + " has finished.")
+        else:
+            tasks.append(
+                QueuingTask(PageParsers.base_url+next_page_url, PageType.laptopcomment_page, info_item)
+            )
+            
 class AsyncCrawler(object):
     
     REQUEST_HEADERS = {
         'Host': "www.amazon.com",
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/ 39.0.2171.95 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
         'Accept-Encoding': 'gzip, deflate, sdch',
-        'Accept-Language': 'en-US,en;q=0.8'
+        'Accept-Language': 'en-US,en;q=0.8',
+        'Cookie': 'p90x-info=AFF; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1462954478411556; x-amz-captcha-2=T6VRd5hpQ0PRa1ut01x7Kw==; csm-hit=s-0ZBGJ0SBMQ9BW3JSM2H8|1463111917503; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
     }
     
     def __init__(self, url):
@@ -31,8 +171,10 @@ class AsyncCrawler(object):
         self.session = aiohttp.ClientSession(loop=self.loop)
         self.q = Queue(loop = self.loop)
         
+        self.manager = Manager()
+        
         self.q.put_nowait(
-            QueuingTask(url, PageType.laptoplist_page, None)
+            QueuingTask(url, PageType.laptoplist_page, LaptopInfoItem())
         )
         
         """
@@ -43,169 +185,50 @@ class AsyncCrawler(object):
                 
     def close(self):
         self.session.close()
-        
-    
-    async def parse_laptoplist(self, response):
-        """
-        TODO:
-        (1) parse all the links to laptop items(add to queue).
-        (2) parse one link to next laptop list page(add to queue).
-        """
+            
+    def parse_laptoplist(self, text):
+
         self.page_cnt += 1
         print("PARSE PAGE NO."+str(self.page_cnt))
+        tasks = self.manager.list()
+        p = Process(target=PageParsers.parse_laptoplist, args=(tasks, text,))
+        p.start()
+        p.join()
+        return tasks
         
-        tasks = set()
-        #body = yield from response.read()
+    def parse_laptopitem(self, text, info_item):
         
-        try:
-            text = await response.text()
-        except:
-            print("PAGE " + str(self.page_cnt) + " WENT WRONG.")
-            raise
-               
-        with open("D:\\No."+str(self.page_cnt)+".html", 'w') as f:
-            f.write(text)
-               
-        #print(text)
-        soup = BeautifulSoup(text, 'html.parser')
-        #items = soup.select(selectorOf['all_laptop_items'])
-        items = [item.find('a') for item in soup.find_all("li", id = re.compile("^result_"))]
-                
-        """
-        add item links
-        """
-        print(len(items))
-        for item in items:
-            url = item['href']
-            #print(url)
-            info_item = LaptopInfoItem()
-            info_item.asin = re.findall(r'\/B[0-9A-Z]{9}\/', url)[0][1:-1]
-            #print("ADD " + info_item.asin + "INTO QUEUE")
-            tasks.add(
-                QueuingTask(url, PageType.laptopitem_page, info_item)
-            )
-            
-        """
-        add next page link
-        """
-        try:
-            next_page_url = soup.select(selectorOf['next_page_link'])[0]['href']
-            tasks.add(
-                QueuingTask(self.base_url+next_page_url, PageType.laptoplist_page, None)
-            )
-        except:
-            print('CAN NOT REACH NEXT PAGE')
-        
+        tasks = self.manager.list()
+        p = Process(target = PageParsers.parse_laptopitem, args = (tasks, text, info_item,))
+        p.start()
+        p.join()
         return tasks
     
-    #@asyncio.coroutine
-    async def parse_laptopitem(self, response, info_item):
-        """
-        TODO:
-        (1) parse all the basic information about a laptop model:
-            (a) asin serial number
-            (b) model title
-            (c) rating
-            (d) price
-            (e) brand
-            ...
-        (2) parse the link to comment list page(add to queue).
-        """
-        
-        #info_item = LaptopInfoItem()
-        
-        tasks = set()
-        
-        try:
-            text = await response.text()
-        except Exception:
-            print("WHEN PARSE LAPTOP: "+ info_item.asin + " WENT WRONG")
-            print("SIZE OF QUEUE: " + str(self.q.qsize()))
-            raise 
-        
-        soup = BeautifulSoup(text, 'html.parser')
-        try:
-            info_item.title = soup.select(selectorOf['product_title'])[0].string
-            info_item.brand = soup.select(selectorOf['product_brand'])[0].string
-            info_item.rating = soup.select(selectorOf['product_rating'])[0].string
-            info_item.price = soup.select(selectorOf['product_price'])[0].string
-        except:
-            pass
-        
-        try:
-            #go to comments page
-            url = soup.select(selectorOf['comment_page_link'])[0]['href']
-            tasks.add(
-                QueuingTask(url, PageType.laptopcomment_page, info_item)
-            )
-        except:
-            print("CANNOT REACH COMMENT PAGE for " + info_item.asin + ".")
-            self.item_cnt += 1
-            print("No." + str(self.item_cnt) + ":" + info_item.asin + " HAS FINISHED")
-            pass
-        
-        return tasks
-    
-    async def parse_laptopcomments(self, response, info_item):
-        """
-        TODO:
-        (1) parse all the comments:
-            (a) customer name
-            (b) rating
-            (c) comment title
-            (d) comment body
-        (2) parse the link to next comment list page(add to queue).
-        """
-        
-        tasks = set()
-        
-        try:
-            text = await response.text()
-        except:
-            print("WHEN PARSE COMMENTS OF "+info_item.asin + " WENT WRONG.")
-            print("SIZE OF QUEUE: " + str(self.q.qsize()))
-            raise
-        soup = BeautifulSoup(text, 'html.parser')
-        
-        """
-        parse all comments 
-        """
-        for cmmt_soup in soup.select(selectorOf['comment_item']):
-            cmmt_item = CommentItem()
-            try:
-                cmmt_item.rating = cmmt_soup.select(selectorOf['product_rating_in_comment'])[0].string
-                cmmt_item.customer_name = cmmt_soup.select(selectorOf['customer_name'])[0].string
-                cmmt_item.comment_title = cmmt_soup.select(selectorOf['comment_title'])[0].string
-                cmmt_item.comment_body = " ".join([s for s in cmmt_soup.select(selectorOf['comment_body'])[0].strings])
-            except:
-                print("ERROR WHEN PARSE " + info_item.asin + "'S COMMENT")
-                pass
-            else:
-                info_item.comments.append(cmmt_item)
-        try:
-            next_page_url = soup.select(selectorOf['comment_next_page_link'])[0]['href']
-            tasks.add(
-                QueuingTask(self.base_url+next_page_url, PageType.laptopcomment_page, info_item)
-            )
-        except:
-            self.item_cnt += 1
-            print("No." + str(self.item_cnt) + ":" + info_item.asin + " HAS FINISHED")
-        return tasks
+    def parse_laptopcomments(self, text, info_item):
 
-    #@memory_profiler.profile
+        tasks = self.manager.list()
+        p = Process(target = PageParsers.parse_laptopcomments, args = (tasks, text, info_item,))
+        p.start()
+        p.join()
+        return tasks
+       
+
     async def crawl(self):
         workers = [asyncio.Task(self.work(), loop=self.loop) for _ in range(self.max_tasks)]
-        await self.q.join()
-        for worker in workers:
-            worker.cancel()
-        
-    
+        try:
+            await self.q.join()
+            for worker in workers:
+                worker.cancel()
+        except Exception as e:
+            LOGGER.error('[in crawl] unexpected error with message: ', e)
+            raise e 
+            
     async def fetch(self, queuingTask):
         """
         unpack task tuple
         """
         url, page_type, info_item = queuingTask
-        #print("BEGIN TO FETCH: " + url)
+        
         """
         try to establish connection
         """
@@ -219,36 +242,32 @@ class AsyncCrawler(object):
             
             tries += 1
         else:
-            print("FAIL TO CONNECT TO "+url)
+            LOGGER.warning("fail to connect to "+url)
             return 
-        
-        #print("CONNECTION ESTABLISHED")
-        #print(response.headers)
-        #text = yield from response.json()
-        #print(text)
-        """
-        parse response
-        """
-        try:
-            
-            if page_type == PageType.laptoplist_page:
-                links = await self.parse_laptoplist(response)
-            elif page_type == PageType.laptopitem_page:
-                links = await self.parse_laptopitem(response, info_item)
-            elif page_type == PageType.laptopcomment_page:
-                links = await self.parse_laptopcomments(response, info_item)
-            
-            for link in links:
-                self.q.put_nowait(link)
-            #for link in links.difference(self.seen_urls):
-            #    self.q.put_nowait(link)
-            #self.seen_urls.update(links)
+          
+        try: 
+            text = await response.text()
         except:
-            raise
-        finally:
-            await response.release()
-    
-    
+            LOGGER.warning("fail to get page content from " + url)
+        else:            
+            """
+            parse response
+            """
+            try:
+                if page_type == PageType.laptoplist_page:
+                    links = self.parse_laptoplist(text)    
+                elif page_type == PageType.laptopitem_page:
+                    links = self.parse_laptopitem(text, info_item)
+                elif page_type == PageType.laptopcomment_page:
+                    links = self.parse_laptopcomments(text, info_item)
+            
+                for link in links:
+                    self.q.put_nowait(link)
+            except:
+                raise
+            finally:
+                await response.release()
+                
     async def work(self):
         try:
             while True:
@@ -256,23 +275,21 @@ class AsyncCrawler(object):
                 await self.fetch(queuingTask)
                 self.q.task_done()
         except asyncio.CancelledError:
-            pass 
-        
-        
-loop = asyncio.get_event_loop()
-crawler = AsyncCrawler("http://www.amazon.com/s/ref=s9_acss_bw_bf_abcdefgh_1_img?rh=i%3Acomputers%2Cn%3A565108&field-availability=-1&field-brandtextbin=Acer&ie=UTF8&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=merchandised-search-10&pf_rd_r=1VQZCF5T7GRS1QFW0TKG&pf_rd_t=101&pf_rd_p=2405855262&pf_rd_i=565108")    
+            pass
+            
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    loop = asyncio.get_event_loop()
+    crawler = AsyncCrawler("http://www.amazon.com/s/ref=s9_acss_bw_bf_abcdefgh_1_img?rh=i%3Acomputers%2Cn%3A565108&field-availability=-1&field-brandtextbin=Acer&ie=UTF8&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=merchandised-search-10&pf_rd_r=1VQZCF5T7GRS1QFW0TKG&pf_rd_t=101&pf_rd_p=2405855262&pf_rd_i=565108")    
 
-try:
-    loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
-except KeyboardInterrupt:
-    #sys.stderr.flush()
-    print('\nInterrupted\n')
-finally:
-    #reporting.report(crawler)
-    crawler.close()
+    try:
+        loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
+    except KeyboardInterrupt:
+        #sys.stderr.flush()
+        print('\nInterrupted\n')
+    finally:
+        crawler.close()
 
-    # next two lines are required for actual aiohttp resource cleanup
-    loop.stop()
-    #loop.run_forever()
-
-    loop.close()
+        # next two lines are required for actual aiohttp resource cleanup
+        loop.stop()
+        loop.close()
