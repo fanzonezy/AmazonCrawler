@@ -1,12 +1,12 @@
 import json
-import pytesseract 
+#import pytesseract 
 from sys import stderr
 from urllib.request import urlretrieve
 from bs4 import BeautifulSoup
-try: 
-    import Image
-except ImportError:
-    from PIL import Image
+#try: 
+#    import Image
+#except ImportError:
+#    from PIL import Image
 from collections import namedtuple
 from enum import Enum
 
@@ -44,7 +44,7 @@ class CommentItem(object):
         }
 
     def __str__(self):
-        return json.dumps(self, default = CommentItem.to_dict, indent=4)
+        return json.dumps(self, default = CommentItem.to_dict)
 
 class LaptopInfoItem(object):
     def __init__(self):
@@ -68,7 +68,7 @@ class LaptopInfoItem(object):
         }
         
     def __str__(self):
-        return json.dumps(self, default=LaptopInfoItem.to_dict, indent=4)
+        return json.dumps(self, default=LaptopInfoItem.to_dict)
           
           
 

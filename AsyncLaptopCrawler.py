@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.5
 import asyncio
 import aiohttp
 #import objgraph
@@ -11,6 +12,13 @@ from bs4 import BeautifulSoup
 from AmazonLaptopCommons import PageType, selectorOf, LaptopInfoItem, CommentItem, QueuingTask
 
 LOGGER = logging.getLogger(__name__)
+#output_file = open("./AcerLaptopInfo", "w")
+
+"""
+Debug
+"""
+
+#item_cnt = 0
 
 
 try:
@@ -66,7 +74,7 @@ class PageParsers(object):
             )
         
     @staticmethod
-    def parse_laptopitem(tasks, text, info_item):
+    def parse_laptopitem(tasks, res, text, info_item):
         #print("Parse item")
         """
         TODO:
@@ -104,8 +112,7 @@ class PageParsers(object):
             url = soup.select(selectorOf['comment_page_link'])[0]['href']
         except IndexError:
             LOGGER.warning("no comments page found for " + info_item.asin + ".")
-            print(info_item.asin + " has finished.")
-            print(info_item)
+            res.append(info_item)
         else:
             tasks.append(
                 QueuingTask(url, PageType.laptopcomment_page, info_item)
@@ -114,7 +121,7 @@ class PageParsers(object):
         #soup.decompose()
 
     @staticmethod
-    def parse_laptopcomments(tasks, text, info_item):
+    def parse_laptopcomments(tasks, res, text, info_item):
         """
         TODO:
         (1) parse all the comments:
@@ -146,6 +153,9 @@ class PageParsers(object):
             next_page_url = soup.select(selectorOf['comment_next_page_link'])[0]['href']
         except IndexError:
             print(info_item.asin + " has finished.")
+            # this will be changed to MongoDB interface in future
+            res.append(info_item)
+            print("write " + info_item.asin + "to file.")
         else:
             tasks.append(
                 QueuingTask(PageParsers.base_url+next_page_url, PageType.laptopcomment_page, info_item)
@@ -159,9 +169,10 @@ class AsyncCrawler(object):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
         'Accept-Encoding': 'gzip, deflate, sdch',
         'Accept-Language': 'en-US,en;q=0.8',
-        'Cookie': 'p90x-info=AFF; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1462954478411556; x-amz-captcha-2=T6VRd5hpQ0PRa1ut01x7Kw==; csm-hit=s-0ZBGJ0SBMQ9BW3JSM2H8|1463111917503; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
-    }
-    
+        'Avail-Dictionary': 'tKUA8sqv',
+        'Cache-Control': 'max-age=0',
+        'Cookie': 'p90x-info=A; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1463187187931960; x-amz-captcha-2=fugIbDgocWocWiWqYV8Lvg==; csm-hit=s-1SHHDSNM55YW57AZHX8W|1463201334777; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
+    }    
     def __init__(self, url):
         self.base_url = "http://www.amazon.com"
         self.seen_urls = set()
@@ -182,10 +193,17 @@ class AsyncCrawler(object):
         """
         self.item_cnt = 0
         self.page_cnt = 0
+
+        """
+        only for alpha verision
+        will migrant to MongoDB interface
+        """
+        self.output_file = open("./AcerLaptopInfo", "w") 
                 
     def close(self):
         self.session.close()
-            
+        self.output_file.close()    
+
     def parse_laptoplist(self, text):
 
         self.page_cnt += 1
@@ -199,17 +217,29 @@ class AsyncCrawler(object):
     def parse_laptopitem(self, text, info_item):
         
         tasks = self.manager.list()
-        p = Process(target = PageParsers.parse_laptopitem, args = (tasks, text, info_item,))
+        res = self.manager.list()
+        p = Process(target = PageParsers.parse_laptopitem, args = (tasks, res, text, info_item,))
         p.start()
         p.join()
+        for item in res:
+            self.output_file.write(str(item)+"\n")
+            print(str(item))
+            self.item_cnt += 1
+            print("NO."+str(self.item_cnt))
         return tasks
     
     def parse_laptopcomments(self, text, info_item):
 
         tasks = self.manager.list()
-        p = Process(target = PageParsers.parse_laptopcomments, args = (tasks, text, info_item,))
+        res = self.manager.list()
+        p = Process(target = PageParsers.parse_laptopcomments, args = (tasks, res, text, info_item,))
         p.start()
         p.join()
+        for item in res:
+            self.output_file.write(str(item)+"\n")
+            print(str(item))
+            self.item_cnt += 1
+            print("NO."+str(self.item_cnt))
         return tasks
        
 
