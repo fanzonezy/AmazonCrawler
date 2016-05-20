@@ -11,7 +11,7 @@
 ### Original and Further Thoughts 
 >The original object of this project is building a Python asynchronous web crawler with fixed parsing rules. At First, this crawler is built for crawling laptop informations on Amazon. Hence, the parsing rules for each page are designed only for certain kinds of pages and hard written as the member methods of crawler class with name parse_pagetype. This means that the code of this project can hardly be reused unless I am willing to refactor it.
 
->In the processing of development, I realized that the parsing rules could be seperated out, and common part of asynchronous IO, such as network IO, disk IO and etc, could be packed up and refactor as a frame work. There are surely some excellent scrawler frame works, like Scapy. But, I don't think all the affort I have spend on this project is meaningless.
+>In the processing of development, I realized that the parsing rules could be seperated out, and common part of asynchronous I/O, such as network I/O, disk I/O and etc, could be packed up and refactor as a frame work. There are surely some excellent scrawler frame works, like Scapy. But, I don't think all the affort I have spend on this project is meaningless.
 
 ## The Work Flow of AmazonCrawler
 >In order to understand the work flow of this crawler, we must first under stand the date model. 
