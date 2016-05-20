@@ -23,7 +23,7 @@ class LaptopCrawler(object):
     def connect(self, url, max_retry = 10):
         retry_cnt = max_retry
         html = requests.get(url)
-        print(html.content)
+        #print(html.content)
         self._total_connection_made += 1
         #print(self._total_connection_made)
         while retry_cnt and not html:

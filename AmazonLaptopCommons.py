@@ -1,12 +1,12 @@
 import json
-#import pytesseract 
+import pytesseract 
 from sys import stderr
 from urllib.request import urlretrieve
 from bs4 import BeautifulSoup
-#try: 
-#    import Image
-#except ImportError:
-#    from PIL import Image
+try: 
+    import Image
+except ImportError:
+    from PIL import Image
 from collections import namedtuple
 from enum import Enum
 
@@ -59,7 +59,7 @@ class LaptopInfoItem(object):
     @staticmethod
     def to_dict(item):
         return {
-            'asub': item.asin,
+            'asin': item.asin,
             'title': item.title,
             'brand': item.brand,
             'price': item.price,
@@ -89,15 +89,3 @@ selectorOf = {
     'comment_next_page_link':'#cm_cr-pagination_bar > ul > li.a-last > a'
 } 
 
-common_headers = {
-    #GET /Acer-Chromebook-CB3-131-C3SZ-11-6-Inch-Dual-Core/product-reviews/B019G7VPTC/ref=cm_cr_dp_see_all_btm?ie=UTF8&showViewpoints=1&sortBy=recent HTTP/1.1
-    'Host': 'www.amazon.com',
-    'Connection': 'keep-alive',
-    'Cache-Control': 'max-age=0',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Upgrade-Insecure-Requests': 1,
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
-    'Accept-Encoding': 'gzip, deflate, sdch',
-    'Avail-Dictionary': 'tKUA8sqv',
-    'Accept-Language': 'en-US,en;q=0.8',
-}

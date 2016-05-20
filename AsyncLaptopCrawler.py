@@ -1,4 +1,3 @@
-#!/usr/bin/env python3.5
 import asyncio
 import aiohttp
 #import objgraph
@@ -11,20 +10,13 @@ from bs4 import BeautifulSoup
 
 from AmazonLaptopCommons import PageType, selectorOf, LaptopInfoItem, CommentItem, QueuingTask
 
-LOGGER = logging.getLogger(__name__)
-#output_file = open("./AcerLaptopInfo", "w")
-
-"""
-Debug
-"""
-
-#item_cnt = 0
-
-
 try:
     from asyncio import JoinableQueue as Queue
 except ImportError:
     from asyncio import Queue
+
+LOGGER = logging.getLogger(__name__)
+item_cnt = 0
     
 class PageParsers(object):
     base_url = "http://www.amazon.com"
@@ -52,7 +44,7 @@ class PageParsers(object):
         """
         add item links
         """
-        print(len(items))
+        
         for item in items:
             url = item['href']
             info_item = LaptopInfoItem()
@@ -64,20 +56,18 @@ class PageParsers(object):
         """
         add next page link
         """
-        try:
-            next_page_url = soup.select(selectorOf['next_page_link'])[0]['href']
-        except IndexError:
-            LOGGER.warning('CAN NOT REACH NEXT PAGE')
-        else:
+        next_page_links = soup.select(selectorOf['next_page_link'])
+        if len(next_page_links):
+            next_page_url = next_page_links[0]['href']
             tasks.append(
                 QueuingTask(PageParsers.base_url+next_page_url, PageType.laptoplist_page, LaptopInfoItem())
             )
+        else:
+            LOGGER.warning('CAN NOT REACH NEXT PAGE')
         
     @staticmethod
     def parse_laptopitem(tasks, res, text, info_item):
-        #print("Parse item")
         """
-        TODO:
         (1) parse all the basic information about a laptop model:
             (a) asin serial number
             (b) model title
@@ -88,42 +78,44 @@ class PageParsers(object):
         """        
               
         soup = BeautifulSoup(text, 'html.parser')
-        try:
-            info_item.title = soup.select(selectorOf['product_title'])[0].string.strip()
-        except IndexError:
+        title_tags = soup.select(selectorOf['product_title'])
+        if len(title_tags):
+            info_item.title = title_tags[0].string.strip()
+        else:
             LOGGER.warning("cannot parse product title of " + info_item.asin)
-            
-        try:
-            info_item.brand = soup.select(selectorOf['product_brand'])[0].string.strip()    
-        except IndexError:
+        
+        brand_tags = soup.select(selectorOf['product_brand'])
+        if len(brand_tags):
+            info_item.brand = brand_tags[0].string.strip()    
+        else:
             LOGGER.warning("cannot parse product brand of " + info_item.asin)
         
-        try:
-            info_item.rating = soup.select(selectorOf['product_rating'])[0].string.strip()
-        except IndexError:
+        rating_tags = soup.select(selectorOf['product_rating'])
+        if len(rating_tags):
+            info_item.rating = rating_tags[0].string.strip()
+        else:
             LOGGER.warning("cannot parse product rating of " + info_item.asin)
         
-        try:
-            info_item.price = soup.select(selectorOf['product_price'])[0].string.strip()
-        except IndexError:
-            LOGGER.warning("cannot parse product price of " + info_item.asin)
-            
-        try:
-            url = soup.select(selectorOf['comment_page_link'])[0]['href']
-        except IndexError:
-            LOGGER.warning("no comments page found for " + info_item.asin + ".")
-            res.append(info_item)
+        price_tags = soup.select(selectorOf['product_price'])
+        if len(price_tags):
+            info_item.price = price_tags[0].string.strip()
         else:
+            LOGGER.warning("cannot parse product price of " + info_item.asin)
+           
+        comment_links = soup.select(selectorOf['comment_page_link'])
+        if len(comment_links):
+            url = comment_links[0]['href']
             tasks.append(
                 QueuingTask(url, PageType.laptopcomment_page, info_item)
             )
+        else:
+            LOGGER.warning("no comments page found for " + info_item.asin + ".")
+            print(info_item.asin + " has finished.")
+            res.append(info_item)
         
-        #soup.decompose()
-
     @staticmethod
     def parse_laptopcomments(tasks, res, text, info_item):
         """
-        TODO:
         (1) parse all the comments:
             (a) customer name
             (b) rating
@@ -153,9 +145,7 @@ class PageParsers(object):
             next_page_url = soup.select(selectorOf['comment_next_page_link'])[0]['href']
         except IndexError:
             print(info_item.asin + " has finished.")
-            # this will be changed to MongoDB interface in future
             res.append(info_item)
-            print("write " + info_item.asin + "to file.")
         else:
             tasks.append(
                 QueuingTask(PageParsers.base_url+next_page_url, PageType.laptopcomment_page, info_item)
@@ -169,10 +159,9 @@ class AsyncCrawler(object):
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
         'Accept-Encoding': 'gzip, deflate, sdch',
         'Accept-Language': 'en-US,en;q=0.8',
-        'Avail-Dictionary': 'tKUA8sqv',
-        'Cache-Control': 'max-age=0',
-        'Cookie': 'p90x-info=A; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1463187187931960; x-amz-captcha-2=fugIbDgocWocWiWqYV8Lvg==; csm-hit=s-1SHHDSNM55YW57AZHX8W|1463201334777; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
-    }    
+        'Cookie': 'p90x-info=AFF; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1462954478411556; x-amz-captcha-2=T6VRd5hpQ0PRa1ut01x7Kw==; csm-hit=s-0ZBGJ0SBMQ9BW3JSM2H8|1463111917503; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
+    }
+    
     def __init__(self, url):
         self.base_url = "http://www.amazon.com"
         self.seen_urls = set()
@@ -193,17 +182,13 @@ class AsyncCrawler(object):
         """
         self.item_cnt = 0
         self.page_cnt = 0
+        self.f = open("D:\\Acer", 'w')
 
-        """
-        only for alpha verision
-        will migrant to MongoDB interface
-        """
-        self.output_file = open("./AcerLaptopInfo", "w") 
                 
     def close(self):
         self.session.close()
-        self.output_file.close()    
-
+        self.f.close()
+            
     def parse_laptoplist(self, text):
 
         self.page_cnt += 1
@@ -218,14 +203,16 @@ class AsyncCrawler(object):
         
         tasks = self.manager.list()
         res = self.manager.list()
+         
         p = Process(target = PageParsers.parse_laptopitem, args = (tasks, res, text, info_item,))
         p.start()
         p.join()
+        
         for item in res:
-            self.output_file.write(str(item)+"\n")
-            print(str(item))
             self.item_cnt += 1
-            print("NO."+str(self.item_cnt))
+            self.f.write(str(self.item_cnt) + "#" + str(item) + "\n")
+            self.f.flush()
+            print("NO." + str(self.item_cnt) + " item")
         return tasks
     
     def parse_laptopcomments(self, text, info_item):
@@ -236,10 +223,10 @@ class AsyncCrawler(object):
         p.start()
         p.join()
         for item in res:
-            self.output_file.write(str(item)+"\n")
-            print(str(item))
             self.item_cnt += 1
-            print("NO."+str(self.item_cnt))
+            self.f.write(str(self.item_cnt) + "#" + str(item) + "\n")
+            self.f.flush()
+            print("NO." + str(self.item_cnt) + " item")
         return tasks
        
 
@@ -293,7 +280,9 @@ class AsyncCrawler(object):
             
                 for link in links:
                     self.q.put_nowait(link)
-            except:
+            except Exception as e:
+                print("parse error")
+                print(e)
                 raise
             finally:
                 await response.release()
@@ -310,16 +299,20 @@ class AsyncCrawler(object):
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     loop = asyncio.get_event_loop()
-    crawler = AsyncCrawler("http://www.amazon.com/s/ref=s9_acss_bw_bf_abcdefgh_1_img?rh=i%3Acomputers%2Cn%3A565108&field-availability=-1&field-brandtextbin=Acer&ie=UTF8&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=merchandised-search-10&pf_rd_r=1VQZCF5T7GRS1QFW0TKG&pf_rd_t=101&pf_rd_p=2405855262&pf_rd_i=565108")    
+    crawler = AsyncCrawler("http://www.amazon.com/s/ref=s9_acss_bw_cg_lgopc_2b1?node=13896617011&brand=Dell&lo=computers&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=unified-hybrid-12&pf_rd_r=1RW9GAG72X5T22DTE9XS&pf_rd_t=101&pf_rd_p=2475582802&pf_rd_i=13896617011")    
 
     try:
         loop.run_until_complete(crawler.crawl())  # Crawler gonna crawl.
     except KeyboardInterrupt:
         #sys.stderr.flush()
         print('\nInterrupted\n')
+        crawler.close()
+        #f.close()
     finally:
         crawler.close()
 
         # next two lines are required for actual aiohttp resource cleanup
         loop.stop()
         loop.close()
+        #f.close()
+        
