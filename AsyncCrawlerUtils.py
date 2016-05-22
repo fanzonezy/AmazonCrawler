@@ -36,7 +36,7 @@ class parsermethod(object):
             todo, done = func(*args, **kwargs)
             
             for task in todo:
-                task_queue.put(task)
+                task_queue.append(task)
             for data_item in done:
                 shared_list.append(data_item) 
                 

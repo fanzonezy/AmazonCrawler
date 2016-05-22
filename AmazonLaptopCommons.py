@@ -1,9 +1,10 @@
+#!/usr/bin/env python3.5
 import json
 import re
 from bs4 import BeautifulSoup
 from collections import namedtuple
 from enum import Enum
-from AsyncLaptopCrawler import BaseAsyncCrawler
+from AsyncBaseCrawler import BaseAsyncCrawler
 from AsyncCrawlerUtils import parsermethod, ParserType, QueuingTask
 import asyncio
 
@@ -42,6 +43,7 @@ class CommentItem(object):
         return json.dumps(self, default = CommentItem.to_dict)
 
 class LaptopInfoItem(object):
+
     def __init__(self):
         self.asin = ""
         self.title = ""
@@ -83,8 +85,17 @@ selectorOf = {
 
 
 class LaptopCrawler(BaseAsyncCrawler):
+
     base_url = "http://www.amazon.com"
-    
+    REQUEST_HEADERS = {
+        'Host': "www.amazon.com",
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
+        'Accept-Encoding': 'gzip, deflate, sdch',
+        'Accept-Language': 'en-US,en;q=0.8',
+        'Cookie': 'p90x-info=AFF; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1462954478411556; x-amz-captcha-2=T6VRd5hpQ0PRa1ut01x7Kw==; csm-hit=s-0ZBGJ0SBMQ9BW3JSM2H8|1463111917503; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
+    }
+ 
     @parsermethod(ParserType.GENERATOR, 'laptop_list')
     def parse_laptoplist(self, text):
         """
@@ -117,7 +128,7 @@ class LaptopCrawler(BaseAsyncCrawler):
             info_item = LaptopInfoItem()
             info_item.asin = re.findall(r'\/B[0-9A-Z]{9}\/', url)[0][1:-1]
             todo.append(
-                QueuingTask(url, PageType.laptopitem_page, info_item)
+                QueuingTask(url, 'detail_page', info_item)
             )
             
         """
@@ -182,6 +193,7 @@ class LaptopCrawler(BaseAsyncCrawler):
         else:
             print("no comments page found for " + info_item.asin + ".")
             print(info_item.asin + " has finished.")
+            print(str(info_item))
             done.append(info_item)
             
         return todo, done
@@ -220,6 +232,7 @@ class LaptopCrawler(BaseAsyncCrawler):
             next_page_url = soup.select(selectorOf['comment_next_page_link'])[0]['href']
         except IndexError:
             print(info_item.asin + " has finished.")
+            print(str(info_item))
             done.append(info_item)
         else:
             todo.append(
@@ -235,7 +248,7 @@ if __name__ == "__main__":
     seed = "http://www.amazon.com/s/ref=s9_acss_bw_cg_lgopc_2b1?node=13896617011&brand=Dell&lo=computers&pf_rd_m=ATVPDKIKX0DER&pf_rd_s=unified-hybrid-12&pf_rd_r=1RW9GAG72X5T22DTE9XS&pf_rd_t=101&pf_rd_p=2475582802&pf_rd_i=13896617011"
     crawler = LaptopCrawler(QueuingTask(seed, 'laptop_list', LaptopInfoItem()))    
 
-    print(crawler.__mapping__)
+    #print(crawler.__mapping__)
     #print(crawler.__dict__)
 
     try:

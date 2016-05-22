@@ -18,15 +18,6 @@ item_cnt = 0
               
 class BaseAsyncCrawler(metaclass=CrawlerMetaClass):
     
-    REQUEST_HEADERS = {
-        'Host': "www.amazon.com",
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/49.0.2623.87 Safari/537.36',
-        'Accept-Encoding': 'gzip, deflate, sdch',
-        'Accept-Language': 'en-US,en;q=0.8',
-        'Cookie': 'p90x-info=AFF; x-wl-uid=1kb5U5f5c4rHaG4vz5zIWJu/tVAITMao2+trg9pgrg2fTKafMpUBUPkUqOuAjAIDQar3g8DV8B93eymfW+V36W9Jvd3BZaD+VnsW6BE6SBzwm+DvlwkMoQNBUTu2uqsvrf2Fq+4dOFPU=; session-token="3lAwr9G8TrLsJQD1W/uJPnaHRzyCKNO9Z2BPuj8VV3R6sBSx2+rux3gFClgxJRlut2Sh/P/BtwmpfCKlNPy00879qZbyLITRNtUvaAktIiY86+AOyco9bxIHOfDdsd4uNeNhKAEOqHAAZyJNxZpHI6f4LVeylpK2Q7sqkiC8yWqQGihtw8J/yoyod12CbhwYfOQFytY7CENpCtQvmaTThw=="; x-amz-captcha-1=1462954478411556; x-amz-captcha-2=T6VRd5hpQ0PRa1ut01x7Kw==; csm-hit=s-0ZBGJ0SBMQ9BW3JSM2H8|1463111917503; ubid-main=188-1376416-9392823; session-id-time=2082787201l; session-id=190-0901353-9801359'
-    }
-    
     def __init__(self, task):
         self.seen_url = set()
         self.max_tasks = 50
@@ -62,33 +53,36 @@ class BaseAsyncCrawler(metaclass=CrawlerMetaClass):
             raise e 
             
     async def fetch(self, queuingTask):
-        print('fetching')
+        #print('fetching')
     
         """
         unpack task tuple
         """
         url, page_type, info_item = queuingTask
-        print(url)
+        #print(url)
         """
         try to establish connection
         """
         tries = 0
         while tries < self.max_retry:
             try:
-                response = await self.session.get(url, headers = BaseAsyncCrawler.REQUEST_HEADERS)
+                response = await self.session.get(url, headers = self.REQUEST_HEADERS)
                 break
             except aiohttp.ClientError:
                 pass
+            except Exception as e:
+                print(e)
             
             tries += 1
         else:
             LOGGER.warning("fail to connect to "+url)
             return 
           
-        print('connection established.')
+        #print('connection established.')
         try: 
             text = await response.text()
-        except:
+        except Exception as e:
+            print('when get page content: ', e)
             print("fail to get page content from " + url)
         else:            
             """
@@ -99,20 +93,16 @@ class BaseAsyncCrawler(metaclass=CrawlerMetaClass):
                 todo = self.manager.list()
                 done = self.manager.list()
                 
-                print(self.__dict__)
-                print(hasattr(self, '__mapping__'))
+                #print(self.__dict__)
+                #print(hasattr(self, '__mapping__'))
                 
                 if hasattr(self, '__mapping__'):
-                    print("+++")
                     parser = self.__mapping__[page_type]
-                    print("---")
-                    #import pickle
-                    #pickle.dumps(parser)
-                    print('parsing '+page_type)
+                    #print('parsing '+page_type)
                     if parser.parser_type == ParserType.GENERATOR:
-                        p = Process(target=parser, args=(todo, done, text,))
+                        p = Process(target=parser, args=(todo, done, self, text,))
                     elif parser.parser_type == ParserType.APPENDER:
-                        p = Process(target=parser, args=(todo, done, text, info_item,))
+                        p = Process(target=parser, args=(todo, done, self, text, info_item,))
                     else:
                         raise Exception('fatal: unrecognized parser type')
                     
