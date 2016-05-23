@@ -15,8 +15,11 @@
 
 ## The Work Flow of AmazonCrawler
 >In order to understand the work flow of this crawler, we must first under stand the data model.
+
 >Generally, we can view the crawler as factory: In this factory, there is one pipline, products will be put into the pipline by a certain kind of worker, generator, that only put create partially finished products. There is any kind of worker, appender, work on this pipline. They will take a partailly finished product and work on that product. After they finish their work, they will either put the product back to the pipline if that product still needs some work to be done or finished that product and put that product into back store.
+
 >This is the general idea of this crawler framework(2016/5/22, at this point, I've only finshed the very basic structure of the framework.), Here comes the question how user use this frame work? Lets first use a general example to illustrate the usage, then we will fully analyze the exmple of crawling all the information of Laptops on Amazon.
+
 >Before building a crawler by this framework, user must first has their data model in their mind and how the data can be obtained. If all the needed pages form a tree structure and requires a certain traversal strategies, this framework will be a quite suitable solution. Let imagine such a situation: I like a girl and I've added her as my friend on a forum. So, I can access her profile page, , and on her profile page I can find her favorite topics. By those topic links, I can access the main pages of those topics. Here is the problem: I want to receive push notifications of the 10th newest posts on my girl's favorite topics every day(If I read those post, I will have a lot stuff to talk with her), but the forum doesn't provide such a highly customized service. So, I have to build one on my own and the first thing to do is to build a crawler which can get me those posts, and then I can easily build a tiny Web service to send those posts either to my mailbox or my cell-phone.
 >
 
