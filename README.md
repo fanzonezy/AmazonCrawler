@@ -34,10 +34,7 @@ class PostItem(object):
         self.title = title
         self.body = body
 ```
-
-
-
->
+>for 
 
 
 
