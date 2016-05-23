@@ -39,7 +39,7 @@ class PostItem(object):
 
 >Okay, the structure of this data item may be easy to come up with, but how to populate those fields while traversing? That's kind of tricky. Suppose the site map of that forum is like following:
 
->![](rsc/picture/figure1.png)
+>![](rsc/pictures/figure1.png)
 
 
 
