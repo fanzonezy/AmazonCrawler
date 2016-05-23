@@ -35,9 +35,9 @@ class PostItem(object):
         self.title = title
         self.body = body
 ```
->Most of the fields in this item is quite easy to understand: `post_time` is the time that this post was posted. `topic` is the topic this post belongs to. `pos` is the position of this post(from 1 to 10). `title` and `body` are the title and text body of that post. The only thing which is hard to understand is the field `last_viewed_time`. This field indicates the latest time that my girl browsing a topic. Why this field is important? Because combining with the `post_time`, I can figure out whether my girl has watched a post. This is important, right? Because I don't want to always talk about stuffs she already knows. 
+>Most of the fields in this item are quite easy to understand: `post_time` is the time that this post was posted. `topic` is the topic this post belongs to. `pos` is the position of this post(from 1 to 10). `title` and `body` are the title and text body of that post. The only thing which is hard to understand is the field `last_viewed_time`. This field indicates the latest time that my girl browses a topic. Why this field is important? Because combining with the `post_time`, I can figure out whether my girl has watched a certain post. This is important, right? Because I don't want to always talk about stuffs she already knows. 
 
->Okay, the structure of this data item may be easy to come up with, but how to populate those fields with traversing? That's kind of tricky. Suppose the site map of that forum is like following:
+>Okay, the structure of this data item may be easy to come up with, but how to populate those fields while traversing? That's kind of tricky. Suppose the site map of that forum is like following:
 
 
 
