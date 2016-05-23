@@ -23,7 +23,10 @@
 >Before building a crawler by this framework, user must has their data model and how the data can be obtained in their mind. If all the needed pages form a tree structure and require certain traversal strategies, this framework will be a quite suitable solution. 
 
 >Let imagine such a situation: I like a girl and I've added her as my friend on a forum. So, I can access her profile page. On her profile page I can find her favorite topics. By those topic links, I can access the main pages of those topics. Here is the problem: I want to receive push notifications of the 10th newest posts under my girl's favorite topics every day(If I read those post, I will have a lot stuff to talk with her), but the forum doesn't provide such a highly customized service. So, I have to build one on my own and the first thing to do is to build a crawler which can get me those posts, and then I can easily build a tiny Web service to send those posts either to my mailbox or to my cell-phone.
->
+
+>Suppose the data item for each post is like this: 
+>`class PostItem(object):`
+>`    def __init__(self, topic, seq_num, title, body):`
 
 
 
