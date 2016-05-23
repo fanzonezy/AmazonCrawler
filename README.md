@@ -41,6 +41,52 @@ class PostItem(object):
 
 >![](rsc/pictures/figure1.png)
 
+>As we can see in above figure, those pages we will traverse to retrieve the needed information forms a perfect tree structure. Let's assume `last_viewed_time` can only be read at her profile page, `pos` can only be read at topic's main page. The rest of the fields can be found either at topic's main page and post's page. Those scattered field brings some sort difficulties. Let's first examine some posible strategies: 
+
+>>(1) Download those pages as HTML files, and retrieve information from local saved html files.
+>>>if we use this strategy, the crawler will be pretty simple, we just have to take care of extracting links from pages and that's it. But when we retrieving data from local html files, we first have to figure out the category of the current page I am working with. It's quite reasonable: different fields come from different page categories. So, for different page category we need different parse algorithm. That is to say, we need to write extra program to recognize page category, either based on rules or some machine learning algorithms. 
+
+>>(2) Retrieve data when traversing, and store the data as Json object on disk.
+>>>if we use this strategy, the problem in (1) can be solved in some extent, since the page category is easy to get in traversing. For example, when I go to a main page of topic from a link on her profile page, I am 100% sure the page I am going to is a main page of a topic. So, with the page category infomation, I can figure out which parsing algorithm to use for a certain page. But, another problem raises, the information scatters around: when I reach her profile page, I get `[last_viewed_time]`. Then I go to a main page of a certain topic, I can get `[post_time, topic, pos]`. Then I go to a post page, I can extract `[title, body]`. So, there will be three seperated Json files, but all corresponding to a single data item. This requires a method to assigned a unique id to the each pieces which enanble us to resemble them. This also introduces extrac work(maybe use a database can easily solve this). 
+
+>This framework is a modification of (2). In this framework, I designed a elegent user interface to let user to associate certain page parsing method with a page type(a string identifier). Let's see how to use this framework to build this crawler: If you remeber I described my framework as a factory with a single pipline and two kinds of workers work on this pipline: generator and appender. So, In this case, the method which parses my girl's profile page is a generator which create a new data item and append some information to itm then put it back to pipline. Let's see how to make a method as a generator in this framework.
+
+>My framework provides a decorator utilities to wrap a method and make it a generator/appender. First, you have to:
+>```python
+from AsyncCrawlerUtils import parsermethod, ParserType, QueuingTask
+```
+>parsermethod is a decorator which takes two arguments: the first argument is the parser type which is spefied by using enum type `ParserType`. QueuingTask is the abstraction of a 'product' on pipline. In this case, to define a generator method to parse my girl's profile page, I have to:
+```python
+@parsermethod(ParserType.GENERATOR, 'profile')
+def parse_profile_page(self, text):
+    todo, done = [], []
+    '''
+    create a new item
+    '''
+    data_item = PostItem()
+    '''
+    populate field(s)
+    '''
+    data_item.last_viewed_time = extract_last_viewed_time()
+    '''
+    extract links to topic page
+    '''
+    topic_links = extract_topic_links(text)
+    '''
+    create 'products' which has to be 
+    finished by another workers
+    '''
+    for link in topic_links:
+        todo.append(QueuingTask(
+            link,
+            'profile',
+            data_item
+        ))
+    return todo, done
+```
+
+### TO BE CONTINUED
+
 
 
 
