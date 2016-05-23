@@ -27,14 +27,15 @@
 >Suppose the data item for each post is like this: 
 >```python
 class PostItem(object):
-    def __init__(self, last_viewed_time, topic, seq_num, title, body):
+    def __init__(self, last_viewed_time, post_time, topic, pos, title, body):
         self.last_viewed_time = last_viewed_time
+        self.post_time = post_time
         self.topic = topic
-        self.seq_num = seq_num
+        self.pos = pos
         self.title = title
         self.body = body
 ```
->for 
+>Most of the fields in this item is quite easy to understand: `post_time` is the time that this post was posted. `topic` is the topic this post belongs to. `pos` is the position of this post(from 1 to 10). `title` and `body` are the title and text body of that post. The only thing which is hard to understand is the field `last_viewed_time`. This field indicates the latest time that my girl browsing a topic 
 
 
 
