@@ -16,7 +16,7 @@
 ## The Work Flow of AmazonCrawler
 >In order to understand the work flow of this crawler, we must first under stand the data model.
 
->Generally, we can view the crawler as factory: In this factory, there is one pipline, products will be put into the pipline by a certain kind of worker, generator, that only put create partially finished products. There is any kind of worker, appender, work on this pipline. They will take a partailly finished product and work on that product. After they finish their work, they will either put the product back to the pipline if that product still needs some work to be done or finished that product and put that product into back store.
+>Generally, we can view the crawler as factory: In this factory, there is one pipline, products will be put into the pipline by a certain kind of worker, generator, that only GENERATE partially finished products. There is another kind of worker, appender, work on this pipline. They will take a partailly finished product and APPEND something to that product. After they finish their work, they will either put the product back to the pipline if that product still needs some work to be done or finished that product and put that product into back store.
 
 >This is the general idea of this crawler framework(2016/5/22, at this point, I've only finshed the very basic structure of the framework.), Here comes the question how user use this frame work? Lets first use a general example to illustrate the usage, then we will fully analyze the exmple of crawling all the information of Laptops on Amazon.
 
